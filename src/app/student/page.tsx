@@ -5,6 +5,27 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import LogoutButton from "@/components/auth/logout-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend
+);
 
 type Student = {
     id: string;
@@ -13,13 +34,9 @@ type Student = {
     year: number;
 };
 
-type Subject = {
-    id: string;
-    name: string;
-};
-
 type AttendanceRecord = {
     subject_id: string;
+    date: string;
     status: "Present" | "Absent";
 };
 
@@ -38,6 +55,17 @@ export default function StudentDashboard() {
     const [student, setStudent] = useState<Student | null>(null);
     const [stats, setStats] = useState<SubjectStats[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Global Stats
+    const [globalStats, setGlobalStats] = useState({
+        totalSubjects: 0,
+        totalClassesHeld: 0,
+        totalClassesAttended: 0,
+        overallPercentage: 0,
+    });
+
+    // Chart Data
+    const [chartData, setChartData] = useState<any>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -84,16 +112,20 @@ export default function StudentDashboard() {
                 // 4. Fetch attendance records for this student
                 const { data: attendanceData, error: attendanceError } = await supabase
                     .from("attendance")
-                    .select("subject_id, status")
-                    .eq("student_id", user.id);
+                    .select("subject_id, date, status")
+                    .eq("student_id", user.id)
+                    .order("date", { ascending: true });
 
                 if (attendanceError) {
                     console.error("Error fetching attendance:", attendanceError);
                     return;
                 }
 
-                // 5. Calculate Stats
+                // 5. Calculate Stats & Prepare Chart Data
                 if (enrollmentsData && attendanceData) {
+                    let totalHeld = 0;
+                    let totalAttended = 0;
+
                     const calculatedStats: SubjectStats[] = enrollmentsData.map((enrollment: any) => {
                         const subject = enrollment.subjects;
                         const subjectId = subject.id;
@@ -109,6 +141,9 @@ export default function StudentDashboard() {
                             (record) => record.status === "Present"
                         ).length;
 
+                        totalHeld += totalClasses;
+                        totalAttended += attendedClasses;
+
                         let percentage = 0;
                         if (totalClasses > 0) {
                             percentage = (attendedClasses / totalClasses) * 100;
@@ -122,16 +157,12 @@ export default function StudentDashboard() {
                             message = "No attendance recorded yet.";
                             statusColor = "text-gray-500";
                         } else if (percentage < 75) {
-                            // Shortfall: required = ceil((0.75 * total) - attended)
                             const required = Math.ceil((0.75 * totalClasses) - attendedClasses);
-                            message = `You are short by ${required} classes.`;
+                            message = `You need ${required} more classes to reach 75%`;
                             statusColor = "text-red-600";
                         } else {
-                            // Surplus: safe_leaves = attended - (0.75 * total)
-                            // We use floor because you can't take a partial leave safely without dropping below, 
-                            // but strictly speaking, if you are exactly 75%, you have 0 safe leaves.
                             const safeLeaves = Math.floor(attendedClasses - (0.75 * totalClasses));
-                            message = `You can safely skip ${safeLeaves} classes.`;
+                            message = `You can skip ${safeLeaves} classes safely`;
                             statusColor = "text-green-600";
                         }
 
@@ -147,6 +178,49 @@ export default function StudentDashboard() {
                     });
 
                     setStats(calculatedStats);
+
+                    setGlobalStats({
+                        totalSubjects: enrollmentsData.length,
+                        totalClassesHeld: totalHeld,
+                        totalClassesAttended: totalAttended,
+                        overallPercentage: totalHeld > 0 ? (totalAttended / totalHeld) * 100 : 0,
+                    });
+
+                    // Prepare Chart Data
+                    // We want a line chart where x-axis is dates, and y-axis is cumulative attendance % or just status?
+                    // User asked for: "y-axis: 1 for Present, 0 for Absent".
+                    // And "One graph per subject OR one combined graph".
+                    // A combined graph with 0/1 for multiple subjects will be very messy (overlapping lines).
+                    // Let's try to group by date and show "Daily Attendance Rate" (Present in X subjects / Total subjects that day)?
+                    // OR just follow instructions strictly: "one combined graph" with 0/1.
+                    // Let's do a combined graph where each dataset is a subject.
+
+                    const uniqueDates = Array.from(new Set(attendanceData.map((r: any) => r.date))).sort();
+
+                    const datasets = enrollmentsData.map((enrollment: any, index: number) => {
+                        const subject = enrollment.subjects;
+                        const subjectColor = `hsl(${index * 60}, 70%, 50%)`; // Generate different colors
+
+                        const dataPoints = uniqueDates.map(date => {
+                            const record = attendanceData.find((r: any) => r.subject_id === subject.id && r.date === date);
+                            if (!record) return null; // No class that day
+                            return record.status === "Present" ? 1 : 0;
+                        });
+
+                        return {
+                            label: subject.name,
+                            data: dataPoints,
+                            borderColor: subjectColor,
+                            backgroundColor: subjectColor,
+                            tension: 0.1,
+                            spanGaps: true, // Connect lines across missing dates
+                        };
+                    });
+
+                    setChartData({
+                        labels: uniqueDates.map(d => new Date(d).toLocaleDateString()),
+                        datasets: datasets,
+                    });
                 }
 
             } catch (err) {
@@ -177,6 +251,83 @@ export default function StudentDashboard() {
                 <LogoutButton />
             </div>
 
+            {/* Global Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Overall Attendance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{globalStats.overallPercentage.toFixed(1)}%</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Total Classes Attended</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{globalStats.totalClassesAttended}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Total Classes Held</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{globalStats.totalClassesHeld}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-500">Total Subjects</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{globalStats.totalSubjects}</div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Attendance Trends Graph */}
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Attendance Trends</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {chartData && (
+                        <div className="h-[300px] w-full">
+                            <Line
+                                data={chartData}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            max: 1,
+                                            ticks: {
+                                                stepSize: 1,
+                                                callback: (value) => value === 1 ? 'Present' : 'Absent'
+                                            }
+                                        }
+                                    },
+                                    plugins: {
+                                        tooltip: {
+                                            callbacks: {
+                                                label: (context) => {
+                                                    return `${context.dataset.label}: ${context.raw === 1 ? 'Present' : 'Absent'}`;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }}
+                            />
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Subject Cards */}
+            <h2 className="text-2xl font-bold mb-4">Subject Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {stats.length === 0 ? (
                     <p className="text-gray-500 col-span-full">You are not enrolled in any subjects.</p>
