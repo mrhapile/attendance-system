@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import LogoutButton from "@/components/auth/logout-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Chart as ChartJS,
@@ -248,7 +250,15 @@ export default function StudentDashboard() {
                         </div>
                     )}
                 </div>
-                <LogoutButton />
+                <div className="flex gap-2 items-center">
+                    <Link href="/student/leave/apply">
+                        <Button>Apply for Leave</Button>
+                    </Link>
+                    <Link href="/student/leave">
+                        <Button variant="outline">My Leave Applications</Button>
+                    </Link>
+                    <LogoutButton />
+                </div>
             </div>
 
             {/* Global Summary */}

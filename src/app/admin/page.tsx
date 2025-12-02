@@ -263,6 +263,16 @@ export default function AdminDashboard() {
                         </CardContent>
                     </Card>
                 </Link>
+                <Link href="/admin/leave">
+                    <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                        <CardHeader>
+                            <CardTitle>Leave Records</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-gray-500">View all student leave applications.</p>
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
         </div>
     );

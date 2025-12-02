@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
 import LogoutButton from "@/components/auth/logout-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Teacher = {
@@ -82,9 +82,14 @@ export default function TeacherDashboard() {
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
-                    {teacher && <div className="text-lg">Welcome, {teacher.name}</div>}
+                    {teacher && <p className="text-gray-600">Welcome, {teacher.name}</p>}
                 </div>
-                <LogoutButton />
+                <div className="flex gap-2 items-center">
+                    <Link href="/teacher/leave">
+                        <Button variant="outline">View Leave Requests</Button>
+                    </Link>
+                    <LogoutButton />
+                </div>
             </div>
 
             <h2 className="text-xl font-semibold mb-4">Your Subjects</h2>
