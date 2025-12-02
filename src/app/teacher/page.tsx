@@ -98,9 +98,12 @@ export default function TeacherDashboard() {
                             <CardHeader>
                                 <CardTitle>{subject.name}</CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex flex-col gap-3">
                                 <Link href={`/teacher/attendance/${subject.id}`}>
                                     <Button className="w-full">Take Attendance</Button>
+                                </Link>
+                                <Link href={`/teacher/attendance/history/${subject.id}`}>
+                                    <Button variant="outline" className="w-full">View History</Button>
                                 </Link>
                             </CardContent>
                         </Card>
