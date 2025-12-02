@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import LogoutButton from "@/components/auth/logout-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Teacher = {
@@ -79,8 +80,11 @@ export default function TeacherDashboard() {
     return (
         <div className="container mx-auto p-8">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
-                {teacher && <div className="text-lg">Welcome, {teacher.name}</div>}
+                <div>
+                    <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
+                    {teacher && <div className="text-lg">Welcome, {teacher.name}</div>}
+                </div>
+                <LogoutButton />
             </div>
 
             <h2 className="text-xl font-semibold mb-4">Your Subjects</h2>
