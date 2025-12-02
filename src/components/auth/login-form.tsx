@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface LoginFormProps {
     redirectTo: string;
-    userType: "Teacher" | "Student";
+    userType: "Teacher" | "Student" | "Admin";
 }
 
 export default function LoginForm({ redirectTo, userType }: LoginFormProps) {
@@ -25,20 +25,70 @@ export default function LoginForm({ redirectTo, userType }: LoginFormProps) {
         setError(null);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
-            if (error) {
-                setError(error.message);
-            } else {
+            if (authError) {
+                setError(authError.message);
+                setLoading(false);
+                return;
+            }
+
+            if (authData.user) {
+                const userId = authData.user.id;
+
+                if (userType === "Teacher") {
+                    // Check if Admin
+                    const { data: admin } = await supabase.from("admins").select("id").eq("id", userId).single();
+                    if (admin) {
+                        await supabase.auth.signOut();
+                        setError("You are an Admin. Please use Admin Login.");
+                        setLoading(false);
+                        return;
+                    }
+                    // Check if Teacher
+                    const { data: teacher } = await supabase.from("teachers").select("id").eq("id", userId).single();
+                    if (!teacher) {
+                        await supabase.auth.signOut();
+                        setError("You are not registered as a teacher.");
+                        setLoading(false);
+                        return;
+                    }
+                } else if (userType === "Student") {
+                    // Check if Admin
+                    const { data: admin } = await supabase.from("admins").select("id").eq("id", userId).single();
+                    if (admin) {
+                        await supabase.auth.signOut();
+                        setError("Admins cannot log in here. Please use Admin Login.");
+                        setLoading(false);
+                        return;
+                    }
+                    // Check if Student
+                    const { data: student } = await supabase.from("students").select("id").eq("id", userId).single();
+                    if (!student) {
+                        await supabase.auth.signOut();
+                        setError("You are not registered as a student.");
+                        setLoading(false);
+                        return;
+                    }
+                } else if (userType === "Admin") {
+                    // Check if Admin
+                    const { data: admin } = await supabase.from("admins").select("id").eq("id", userId).single();
+                    if (!admin) {
+                        await supabase.auth.signOut();
+                        setError("You are not an admin.");
+                        setLoading(false);
+                        return;
+                    }
+                }
+
                 router.push(redirectTo);
             }
         } catch (err) {
             setError("An unexpected error occurred");
             console.error(err);
-        } finally {
             setLoading(false);
         }
     };
